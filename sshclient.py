@@ -81,12 +81,49 @@ class SCPHandler:
 
 class Action:
 
-    def __init__(self, action_type, expects, nexts, output = True):
+    def __init__(self, action_type, action_value = None, output = True):
         self.action_type = action_type
-        self.expects = expects
-        self.nexts  = nexts
+        self.expects = []
+        self.nexts  = [] 
         self.output = output
-        
+        if action_type == 'command':
+            self.command = action_value
+        if action_type == 'exception':
+            self.exception = action_value
+        if action_type == 'end':
+            self.end_callback = action_value
+
+    def add_next_action(self, expect_str, action):
+        self.expects.append(expect_str)
+        self.nexts.append(action)
+
+    def start(self, progress, out=sys.stdout, timeout=10):
+        if not PEXPECT:
+            logger.warning('Pexpect is not supported.')
+            out.write('Command Fail. Error: Pexpect is not supported.')
+            return
+        action = self 
+        while True:
+            if action.action_type == "command":
+                print action.command
+                progress.sendline(action.command) 
+                progress.readline()
+                try:
+                    i = progress.expect(action.expects, timeout)
+                    if action.output:
+                        out.write(progress.before)
+                    action = action.nexts[i]
+                except pexpect.TIMEOUT:
+                    raise Timeout('Command timeout!')
+                except pexpect.EOF:
+                    return ssh.exitstatus
+            elif action.action_type == "exception":
+                raise action.exception
+            elif action.action_type == "end":
+                if action.end_callback:
+                    action.end_callback()
+                break
+
 class SSHHandler:
 
     def __init__(self, ip, loginUser, prompt, loginPass='', timeout=10):
@@ -130,43 +167,19 @@ class SSHHandler:
             logger.warning('Pexpect is not supported.')
             self.user = newUser
             return
-
-        self.ssh.sendline('su - %s' % (newUser))
+        suAction = Action("command", 'su - %s' % (newUser), False)
+        def callback():
+            self.prompt = prompt
+        succAction = Action("end", callback)
         if self.user != "root":
-            i = self.ssh.expect(['assword:'])
-            if i == 0:
-                self.ssh.sendline(newPass)
-                self.ssh.expect('\n')
-        try:
-            i = self.ssh.expect([prompt, 'Sorry'], min(timeout, 10))
-            if i == 0:
-                self.prompt = prompt
-                self.user = newUser
-            else:
-                raise AuthenticationFailed('Authentication failed.')
-        except pexpect.TIMEOUT:
-            raise Timeout('Command timeout!')
+            passAction = Action("command", newPass)
+            suAction.add_next_action('assword:', passAction)
+            passAction.add_next_action(prompt, succAction)
+            passAction.add_next_action("Authentication failure", Action("exception", AuthenticationFailed()))
+        else: 
+            suAction.add_next_action(prompt, succAction)       
+        suAction.start(self.ssh)
 
-    def interacts(self, first, out=sys.stdout, timeout=10):
-        if not PEXPECT:
-            logger.warning('Pexpect is not supported.')
-            out.write('Command Fail. Error: Pexpect is not supported.')
-            return
-        action = first
-        while True:
-            if action.action_type == "command":
-                self.ssh.sendline(action.command) 
-                print action.command
-                self.ssh.readline()
-                i = self.ssh.expect(action.expects, timeout)
-                if action.output:
-                    out.write(self.ssh.before)
-                action = action.nexts[i]
-            elif action.action_type == "exception":
-                raise action.exception
-            elif action.action_type == "end":
-                break
-        
     def runCommand(self, cmd, out=sys.stdout, prompt=None, timeout=10):
         logger.debug('Run Command: %s.' % (cmd))
         if not PEXPECT:
@@ -204,3 +217,9 @@ class SSHHandler:
 
         self.ssh.close()
 
+if __name__  == '__main__':
+    prompt = '\[vagrant@devtest ~\]\$ '
+    ssh = SSHHandler('localhost', 'vagrant', prompt, 'vagrant')
+    ssh.changeUser('root', 'vagrant', '\[root@devtest ~\]# ')
+    ssh.runCommand("ls")
+    ssh.close()

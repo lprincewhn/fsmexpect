@@ -21,27 +21,28 @@ class TestSSHHandler(unittest.TestCase):
     def testNoPasswordInteract(self):
         prompt = '\[root@devtest ~\]# '
         ssh = sshclient.SSHHandler(self.host, self.userwithoutpass, prompt)
-        endAction = sshclient.Action("end", [], [])
-        lsAction = sshclient.Action("command", ['\[vagrant@devtest ~\]\$'], [endAction])
-        lsAction.command = "ls"
-        suAction = sshclient.Action("command", ['\[vagrant@devtest ~\]\$'], [lsAction], False)
-        suAction.command = "su - vagrant"
-        result = ssh.interacts(suAction)
+        endAction = sshclient.Action("end")
+        lsAction = sshclient.Action("command", "ls")
+        lsAction.add_next_action('\[vagrant@devtest ~\]\$', endAction)
+        suAction = sshclient.Action("command", "su - vagrant", False)
+        suAction.add_next_action('\[vagrant@devtest ~\]\$', lsAction)
+        result = suAction.start(ssh.ssh)
         ssh.close()
 
     def testPasswordInteract(self):
         prompt = '\[vagrant@devtest ~\]\$ '
         ssh = sshclient.SSHHandler(self.host, self.userwithpass, prompt, self.userpass)
-        endAction = sshclient.Action("end", [], [])
-        lsAction = sshclient.Action("command", ['\[root@devtest ~\]#'], [endAction])
-        lsAction.command = "ls"
-        wpAction = sshclient.Action("exception", [], [])
+        endAction = sshclient.Action("end")
+        lsAction = sshclient.Action("command", "ls")
+        lsAction.add_next_action('\[root@devtest ~\]#', endAction)
+        wpAction = sshclient.Action("exception")
         wpAction.exception = sshclient.AuthenticationFailed()
-        passAction = sshclient.Action("command", ['\[root@devtest ~\]#', 'Authentication failure'], [lsAction, wpAction], False)
-        passAction.command = "vagrant1"
-        suAction = sshclient.Action("command", ['assword:'], [passAction], False)
-        suAction.command = "su - "
-        result = ssh.interacts(suAction)
+        passAction = sshclient.Action("command", "vagrant", False)
+        passAction.add_next_action('\[root@devtest ~\]#', lsAction)
+        passAction.add_next_action('Authentication failure', wpAction)
+        suAction = sshclient.Action("command", "su - ", False)
+        suAction.add_next_action('assword:', passAction)
+        result = suAction.start(ssh.ssh)
         ssh.close()
 
 if __name__ == '__main__':
