@@ -31,8 +31,7 @@ Vagrant.configure("2") do |config|
       cd /root
       git clone https://github.com/lprincewhn/sshexpect.git
       cd sshexpect
-      git pull origin dev:dev
-      git checkout dev
+      python unit.py
       ssh-keygen -N "" -f /root/.ssh/id_rsa
       cat /root/.ssh/id_rsa.pub > /root/.ssh/authorized_keys
     SHELL
