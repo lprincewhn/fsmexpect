@@ -2,15 +2,12 @@
 #coding=utf8
 
 import sys
-import logging
 
 try:
     import pexpect
     PEXPECT = True
 except:
     PEXPECT = False
-
-logger = logging.getLogger("SSHClient")
 
 class AuthenticationFailed(Exception):
     pass
@@ -33,42 +30,16 @@ class SCPHandler:
 
     def need_pass(self,scp):
         try:
-            scp.expect(['assword:'])
+            scp.expect(['.+assword:'])
             return True, None
         except pexpect.EOF:
             return False, scp.exitstatus
 
     def upload(self, localFile, remoteFile):
         scp_cmd = 'scp -o StrictHostKeyChecking=no %s %s@%s:%s' % (localFile, self.loginUser, self.ip, remoteFile)
-        logger.debug(scp_cmd)
-        if not PEXPECT:
-            logger.warning('Pexpect is not supported.')
-            return
         scp = pexpect.spawn(scp_cmd)
         need_pass, exitstatus = self.need_pass(scp)
         if need_pass:
-            logger.debug('Send login password.')
-            scp.sendline(self.loginPass)
-            need_pass, exitstatus = self.need_pass(scp)
-        if need_pass:
-            raise AuthenticationFailed("Authentication failed.")
-        else:
-            if exitstatus:
-                raise SCPFailed("Upload failed. Exit code: %d" %(exitstatus))  
-            else:
-                logger.debug("Successful to upload file %s" %(localFile)) 
-        
-
-    def download(self, remoteFile, localFile):
-        scp_cmd = 'scp -o StrictHostKeyChecking=no %s@%s:%s %s' % (self.loginUser, self.ip, remoteFile, localFile)
-        logger.debug(scp_cmd)
-        if not PEXPECT:
-            logger.warning('Pexpect is not supported.')
-            return
-        scp = pexpect.spawn(scp_cmd)
-        need_pass, exitstatus = self.need_pass(scp)
-        if need_pass:
-            logger.debug('Send login password.')
             scp.sendline(self.loginPass)
             need_pass, exitstatus = self.need_pass(scp)
         if need_pass:
@@ -76,131 +47,123 @@ class SCPHandler:
         else:
             if exitstatus:
                 raise SCPFailed("Upload failed. Exit code: %d" %(exitstatus))
-            else:
-                logger.debug("Successful to download file %s" %(localFile))
+
+
+    def download(self, remoteFile, localFile):
+        scp_cmd = 'scp -o StrictHostKeyChecking=no %s@%s:%s %s' % (self.loginUser, self.ip, remoteFile, localFile)
+        scp = pexpect.spawn(scp_cmd)
+        need_pass, exitstatus = self.need_pass(scp)
+        if need_pass:
+            scp.sendline(self.loginPass)
+            need_pass, exitstatus = self.need_pass(scp)
+        if need_pass:
+            raise AuthenticationFailed("Authentication failed.")
+        else:
+            if exitstatus:
+                raise SCPFailed("Upload failed. Exit code: %d" %(exitstatus))
 
 class Action:
 
-    def __init__(self, action_type, expects, nexts, output = True):
+    def __init__(self, action_type, action_value = None, output_on = True):
         self.action_type = action_type
-        self.expects = expects
-        self.nexts  = nexts
-        self.output = output
-        
+        self.expects = []
+        self.nexts  = []
+        self.output_on = output_on
+        if action_type == 'command' or action_type == 'continue':
+            self.command = action_value
+        if action_type == 'exception':
+            self.exception = action_value
+        if action_type == 'end':
+            self.end_callback = action_value
+
+    def add_next_action(self, expect_str, action):
+        self.expects.append(expect_str)
+        self.nexts.append(action)
+
 class SSHHandler:
 
     def __init__(self, ip, loginUser, prompt, loginPass='', timeout=10):
         ssh_cmd = 'ssh -o StrictHostKeyChecking=no %s@%s' % (loginUser, ip)
-        if not PEXPECT:
-            logger.warning('Pexpect is not supported.')
-            self.user = loginUser
-            return
         self.ssh = pexpect.spawn(ssh_cmd)
         try:
-            i = self.ssh.expect([prompt, 'assword:'], timeout)
+            i = self.ssh.expect([prompt, '.+assword:'], timeout)
             if i == 0:
                 self.prompt = prompt
                 self.user = loginUser
                 return
         except pexpect.EOF:
-            logger.warning("SSH Connection Fail")
             self.ssh.close()
             raise ConnectionError()
         except pexpect.TIMEOUT:
-            logger.warning("SSH Connection TIMEOUT")
             self.ssh.close()
             raise Timeout("SSH connection timeout!")
 
-        logger.debug('Send login password.')
-        self.ssh.sendline(loginPass)
-        try:
-            i = self.ssh.expect([prompt, 'assword: '], timeout)
-            if i == 0:
-                self.prompt = prompt
-                self.user = loginUser
-            else:
-                self.ssh.close()
-                raise AuthenticationFailed('Authentication failed!')
-        except pexpect.TIMEOUT:
-            raise Timeout('Login timeout!')
-
-    def changeUser(self, newUser, newPass, prompt, timeout=10):
-        logger.debug('Change user to %s' % (newUser))
-        if not PEXPECT:
-            logger.warning('Pexpect is not supported.')
-            self.user = newUser
-            return
-
-        self.ssh.sendline('su - %s' % (newUser))
-        if self.user != "root":
-            i = self.ssh.expect(['assword:'])
-            if i == 0:
-                self.ssh.sendline(newPass)
-                self.ssh.expect('\n')
-        try:
-            i = self.ssh.expect([prompt, 'Sorry'], min(timeout, 10))
-            if i == 0:
-                self.prompt = prompt
-                self.user = newUser
-            else:
-                raise AuthenticationFailed('Authentication failed.')
-        except pexpect.TIMEOUT:
-            raise Timeout('Command timeout!')
-
-    def interacts(self, first, out=sys.stdout, timeout=10):
-        if not PEXPECT:
-            logger.warning('Pexpect is not supported.')
-            out.write('Command Fail. Error: Pexpect is not supported.')
-            return
-        action = first
-        while True:
-            if action.action_type == "command":
-                self.ssh.sendline(action.command) 
-                print action.command
-                self.ssh.readline()
-                i = self.ssh.expect(action.expects, timeout)
-                if action.output:
-                    out.write(self.ssh.before)
-                action = action.nexts[i]
-            elif action.action_type == "exception":
-                raise action.exception
-            elif action.action_type == "end":
-                break
-        
-    def runCommand(self, cmd, out=sys.stdout, prompt=None, timeout=10):
-        logger.debug('Run Command: %s.' % (cmd))
-        if not PEXPECT:
-            logger.warning('Pexpect is not supported.')
-            out.write('Command Fail. Error: Pexpect is not supported.')
-            return
-
-        self.ssh.sendline(cmd)
-        self.ssh.readline()
-        if prompt is None:
-            prompt_w = self.prompt
-        else:
-            prompt_w = prompt
-        i = -1
-        result = ""
-        while i != 0:
-            try:
-                i = self.ssh.expect([prompt_w, "--More--"], timeout)
-                out.write(self.ssh.before)
-                result += self.ssh.before
-                if i == 1:
-                    self.ssh.send(" ")
-            except pexpect.TIMEOUT:
-                raise Timeout('Command timeout!')
-        if prompt:
+        pass_action = Action("command", loginPass, False)
+        def callback():
             self.prompt = prompt
-        return result
+            self.user = loginUser
+        succ_action = Action("end", callback)
+        fail_action = Action("exception", AuthenticationFailed())
+        pass_action.add_next_action('.+assword: ', fail_action)
+        pass_action.add_next_action(prompt, succ_action)
+        self.start_action(pass_action)
 
+    def start_action(self, action, timeout=10):
+        current =  action
+        output = ''
+        while True:
+            if current.action_type in ["command", "continue"] :
+                self.ssh.sendline(current.command)
+                if current.action_type == "command":
+                    self.ssh.readline()
+                try:
+                    i = self.ssh.expect(current.expects, timeout)
+                    if current.output_on:
+                        output += self.ssh.before
+                    current = current.nexts[i]
+                except pexpect.TIMEOUT:
+                    raise Timeout('Command timeout!')
+                except pexpect.EOF:
+                    return ssh.exitstatus
+            elif current.action_type == "exception":
+                raise current.exception
+            elif current.action_type == "end":
+                if current.end_callback:
+                    current.end_callback()
+                break
+        return output
+
+    def change_prompt(self, cmd, prompt, password='', timeout=10):
+        cmd_action = Action("command", cmd)
+        def callback():
+            self.prompt = prompt
+        succ_action = Action("end", callback)
+        pass_action = Action("command", password)
+
+        cmd_action.add_next_action('.+assword:', pass_action) # Need password
+        cmd_action.add_next_action(prompt, succ_action)  # Success directly
+        pass_action.add_next_action(prompt, succ_action)  # Success
+        pass_action.add_next_action("Authentication failure", Action("exception", AuthenticationFailed()))   # Wrong password
+        self.start_action(cmd_action, timeout)
+
+    def run_cmd(self, cmd, out=sys.stdout, password='', timeout=10):
+        cmd_action = Action("command", cmd)
+        succ_action = Action("end")
+        pass_action = Action("command", password)
+        continue_action = Action("continue", " ")
+
+        cmd_action.add_next_action(self.prompt, succ_action)      # Success directly
+        cmd_action.add_next_action('.+assword:', pass_action)  # Need password
+        cmd_action.add_next_action('--More--\(\d+%\)', continue_action) # Long output
+        pass_action.add_next_action(self.prompt, succ_action)  # Success directly
+        pass_action.add_next_action("Authentication failure", Action("exception", AuthenticationFailed())) # Wrong password
+        pass_action.add_next_action('--More--\(\d+%\)', continue_action) # Long output
+        continue_action.add_next_action(self.prompt, succ_action)
+        continue_action.add_next_action('--More--\(\d+%\)', continue_action)
+        output = self.start_action(cmd_action, timeout)
+        out.write(output)
+        return output
 
     def close(self):
-        logger.debug('Close ssh session.')
-        if not PEXPECT:
-            logger.warning('Pexpect is not supported.')
-            return
-
         self.ssh.close()
 
