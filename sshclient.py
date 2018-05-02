@@ -4,6 +4,15 @@
 import sys
 import pexpect
 
+debug = False
+logger = None
+
+def _debug(str):
+    if logger:
+        logger.debug(str)
+    elif debug:
+        print str
+
 class AuthenticationFailed(Exception):
     pass
 
@@ -28,10 +37,12 @@ class SCPHandler:
             scp.expect(['.+assword:'])
             return True, None
         except pexpect.EOF:
+            _debug("SCP exit with %s" % (scp.exitstatus))
             return False, scp.exitstatus
 
     def upload(self, localFile, remoteFile):
         scp_cmd = 'scp -o StrictHostKeyChecking=no %s %s@%s:%s' % (localFile, self.loginUser, self.ip, remoteFile)
+        _debug("Start SCP upload：%s" % (scp_cmd))
         scp = pexpect.spawn(scp_cmd)
         need_pass, exitstatus = self.need_pass(scp)
         if need_pass:
@@ -41,11 +52,12 @@ class SCPHandler:
             raise AuthenticationFailed("Authentication failed.")
         else:
             if exitstatus:
-                raise SCPFailed("Upload failed. Exit code: %d" %(exitstatus))
+                raise SCPFailed("Upload failed. Exit code: %s" %(exitstatus))
 
 
     def download(self, remoteFile, localFile):
         scp_cmd = 'scp -o StrictHostKeyChecking=no %s@%s:%s %s' % (self.loginUser, self.ip, remoteFile, localFile)
+        _debug("Start SCP download：%s" % (scp_cmd))
         scp = pexpect.spawn(scp_cmd)
         need_pass, exitstatus = self.need_pass(scp)
         if need_pass:
@@ -55,7 +67,7 @@ class SCPHandler:
             raise AuthenticationFailed("Authentication failed.")
         else:
             if exitstatus:
-                raise SCPFailed("Upload failed. Exit code: %d" %(exitstatus))
+                raise SCPFailed("Upload failed. Exit code: %s" %(exitstatus))
 
 class FSMState:
 
@@ -81,6 +93,7 @@ class FSMState:
         while True:
             if current.state_type in ["command", "operate"] :
                 p_expect.sendline(current.command)
+                _debug("Send：%s" % (current.command))
                 if current.state_type == "command":
                     p_expect.readline()
                 try:
@@ -104,6 +117,7 @@ class SSHHandler:
 
     def __init__(self, ip, loginUser, prompt, loginPass='', timeout=10):
         ssh_cmd = 'ssh -o StrictHostKeyChecking=no %s@%s' % (loginUser, ip)
+        _debug("Start ssh: %s" % (ssh_cmd))
         self.ssh = pexpect.spawn(ssh_cmd)
         try:
             i = self.ssh.expect([prompt, '.+assword:'], timeout)
@@ -132,6 +146,7 @@ class SSHHandler:
         return self.ssh
 
     def change_prompt(self, cmd, prompt, password='', timeout=10):
+        _debug("Run %s and change prompt to %s" % (cmd, prompt))
         cmd_state = FSMState("command", cmd)
         def callback():
             self.prompt = prompt
@@ -146,6 +161,7 @@ class SSHHandler:
         cmd_state.start(self.ssh, timeout)
 
     def run_cmd(self, cmd, out=sys.stdout, password='', timeout=10):
+        _debug("Run %s" % (cmd))
         cmd_state = FSMState("command", cmd)
         succ_state= FSMState("end")
         pass_state = FSMState("command", password)
@@ -165,4 +181,5 @@ class SSHHandler:
         return output
 
     def close(self):
+        _debug("Close ssh.")
         self.ssh.close()
