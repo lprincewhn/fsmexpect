@@ -69,7 +69,7 @@ class Action:
         self.expects = []
         self.nexts  = []
         self.output_on = output_on
-        if action_type == 'command' or action_type == 'continue':
+        if action_type == 'command' or action_type == 'operate':
             self.command = action_value
         if action_type == 'exception':
             self.exception = action_value
@@ -79,6 +79,31 @@ class Action:
     def add_next_action(self, expect_str, action):
         self.expects.append(expect_str)
         self.nexts.append(action)
+
+    def start(self, p_expect, timeout=10):
+        current = self
+        output = ''
+        while True:
+            if current.action_type in ["command", "operate"] :
+                p_expect.sendline(current.command)
+                if current.action_type == "command":
+                    p_expect.readline()
+                try:
+                    i = p_expect.expect(current.expects, timeout)
+                    if current.output_on:
+                        output += p_expect.before
+                    current = current.nexts[i]
+                except pexpect.TIMEOUT:
+                    raise Timeout('Command timeout!')
+                except pexpect.EOF:
+                    return p_expect.exitstatus
+            elif current.action_type == "exception":
+                raise current.exception
+            elif current.action_type == "end":
+                if current.end_callback:
+                    current.end_callback()
+                break
+        return output
 
 class SSHHandler:
 
@@ -106,32 +131,10 @@ class SSHHandler:
         fail_action = Action("exception", AuthenticationFailed())
         pass_action.add_next_action('.+assword: ', fail_action)
         pass_action.add_next_action(prompt, succ_action)
-        self.start_action(pass_action)
+        pass_action.start(self.ssh)
 
-    def start_action(self, action, timeout=10):
-        current =  action
-        output = ''
-        while True:
-            if current.action_type in ["command", "continue"] :
-                self.ssh.sendline(current.command)
-                if current.action_type == "command":
-                    self.ssh.readline()
-                try:
-                    i = self.ssh.expect(current.expects, timeout)
-                    if current.output_on:
-                        output += self.ssh.before
-                    current = current.nexts[i]
-                except pexpect.TIMEOUT:
-                    raise Timeout('Command timeout!')
-                except pexpect.EOF:
-                    return ssh.exitstatus
-            elif current.action_type == "exception":
-                raise current.exception
-            elif current.action_type == "end":
-                if current.end_callback:
-                    current.end_callback()
-                break
-        return output
+    def p_expect(self):
+        return self.ssh
 
     def change_prompt(self, cmd, prompt, password='', timeout=10):
         cmd_action = Action("command", cmd)
@@ -139,28 +142,30 @@ class SSHHandler:
             self.prompt = prompt
         succ_action = Action("end", callback)
         pass_action = Action("command", password)
+        failed_action = Action("exception", AuthenticationFailed())
 
-        cmd_action.add_next_action('.+assword:', pass_action) # Need password
-        cmd_action.add_next_action(prompt, succ_action)  # Success directly
-        pass_action.add_next_action(prompt, succ_action)  # Success
-        pass_action.add_next_action("Authentication failure", Action("exception", AuthenticationFailed()))   # Wrong password
-        self.start_action(cmd_action, timeout)
+        cmd_action.add_next_action('.+assword:', pass_action)                 # Need password
+        cmd_action.add_next_action(prompt, succ_action)                       # Success directly
+        pass_action.add_next_action(prompt, succ_action)                      # Success
+        pass_action.add_next_action("Authentication failure", failed_action)  # Wrong password
+        cmd_action.start(self.ssh, timeout)
 
     def run_cmd(self, cmd, out=sys.stdout, password='', timeout=10):
         cmd_action = Action("command", cmd)
         succ_action = Action("end")
         pass_action = Action("command", password)
-        continue_action = Action("continue", " ")
+        failed_action = Action("exception", AuthenticationFailed())
+        continue_action = Action("operate", " ")
 
-        cmd_action.add_next_action(self.prompt, succ_action)      # Success directly
-        cmd_action.add_next_action('.+assword:', pass_action)  # Need password
-        cmd_action.add_next_action('--More--\(\d+%\)', continue_action) # Long output
-        pass_action.add_next_action(self.prompt, succ_action)  # Success directly
-        pass_action.add_next_action("Authentication failure", Action("exception", AuthenticationFailed())) # Wrong password
-        pass_action.add_next_action('--More--\(\d+%\)', continue_action) # Long output
+        cmd_action.add_next_action(self.prompt, succ_action)                  # Success directly
+        cmd_action.add_next_action('.+assword:', pass_action)                 # Need password
+        cmd_action.add_next_action('--More--\(\d+%\)', continue_action)       # Long output
+        pass_action.add_next_action(self.prompt, succ_action)                 # Success directly
+        pass_action.add_next_action("Authentication failure", failed_action)  # Wrong password
+        pass_action.add_next_action('--More--\(\d+%\)', continue_action)      # Long output
         continue_action.add_next_action(self.prompt, succ_action)
         continue_action.add_next_action('--More--\(\d+%\)', continue_action)
-        output = self.start_action(cmd_action, timeout)
+        output = cmd_action.start(self.ssh, timeout)
         out.write(output)
         return output
 

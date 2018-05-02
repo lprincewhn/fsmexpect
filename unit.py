@@ -26,7 +26,7 @@ class TestSSHHandler(unittest.TestCase):
         ls_action.add_next_action('\[vagrant@devtest ~\]\$', end_action)
         su_action = sshclient.Action("command", "su - vagrant", False)
         su_action.add_next_action('\[vagrant@devtest ~\]\$', ls_action)
-        result = ssh.start_action(su_action)
+        result = su_action.start(ssh.p_expect())
         ssh.close()
 
     def testPasswordRawActions(self):
@@ -42,7 +42,7 @@ class TestSSHHandler(unittest.TestCase):
         passAction.add_next_action('Authentication failure', wpAction)
         su_action = sshclient.Action("command", "su - ", False)
         su_action.add_next_action('assword:', passAction)
-        result = ssh.start_action(su_action)
+        result = su_action.start(ssh.p_expect())
         ssh.close()
 
     def testPasswordChangePrompt(self):
