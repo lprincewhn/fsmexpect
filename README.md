@@ -39,10 +39,10 @@ succ_action = Action("end")
 pass_action = Action("command", password)
 failed_action = Action("exception", AuthenticationFailed())
 continue_action = Action("operate", " ")
-cmd_action.add_next_action(shell_prompt,  succ_action)                 # Success directly
+cmd_action.add_next_action(shell_prompt,  succ_action)                # Success directly
 cmd_action.add_next_action('.+assword:', pass_action)                 # Need password
 cmd_action.add_next_action('--More--\(\d+%\)', continue_action)       # Long output
-pass_action.add_next_action(shell_prompt, succ_action)                 # Success directly
+pass_action.add_next_action(shell_prompt, succ_action)                # Success directly
 pass_action.add_next_action("Authentication failure", failed_action)  # Wrong password
 pass_action.add_next_action('--More--\(\d+%\)', continue_action)      # Long output
 continue_action.add_next_action(shell_prompt, succ_action)
