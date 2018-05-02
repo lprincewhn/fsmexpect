@@ -2,12 +2,7 @@
 #coding=utf8
 
 import sys
-
-try:
-    import pexpect
-    PEXPECT = True
-except:
-    PEXPECT = False
+import pexpect
 
 class AuthenticationFailed(Exception):
     pass
@@ -171,4 +166,3 @@ class SSHHandler:
 
     def close(self):
         self.ssh.close()
-
