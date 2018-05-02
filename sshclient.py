@@ -57,31 +57,31 @@ class SCPHandler:
             if exitstatus:
                 raise SCPFailed("Upload failed. Exit code: %d" %(exitstatus))
 
-class Action:
+class FSMState:
 
-    def __init__(self, action_type, action_value = None, output_on = True):
-        self.action_type = action_type
+    def __init__(self, state_type, action = None, output_on = True):
+        self.state_type = state_type
         self.expects = []
         self.nexts  = []
         self.output_on = output_on
-        if action_type == 'command' or action_type == 'operate':
-            self.command = action_value
-        if action_type == 'exception':
-            self.exception = action_value
-        if action_type == 'end':
-            self.end_callback = action_value
+        if state_type == 'command' or state_type == 'operate':
+            self.command = action
+        if state_type == 'exception':
+            self.exception = action
+        if state_type == 'end':
+            self.end_callback = action
 
-    def add_next_action(self, expect_str, action):
+    def add_next_state(self, expect_str, state):
         self.expects.append(expect_str)
-        self.nexts.append(action)
+        self.nexts.append(state)
 
     def start(self, p_expect, timeout=10):
         current = self
         output = ''
         while True:
-            if current.action_type in ["command", "operate"] :
+            if current.state_type in ["command", "operate"] :
                 p_expect.sendline(current.command)
-                if current.action_type == "command":
+                if current.state_type == "command":
                     p_expect.readline()
                 try:
                     i = p_expect.expect(current.expects, timeout)
@@ -92,9 +92,9 @@ class Action:
                     raise Timeout('Command timeout!')
                 except pexpect.EOF:
                     return p_expect.exitstatus
-            elif current.action_type == "exception":
+            elif current.state_type == "exception":
                 raise current.exception
-            elif current.action_type == "end":
+            elif current.state_type == "end":
                 if current.end_callback:
                     current.end_callback()
                 break
@@ -118,49 +118,49 @@ class SSHHandler:
             self.ssh.close()
             raise Timeout("SSH connection timeout!")
 
-        pass_action = Action("command", loginPass, False)
+        pass_state = FSMState("command", loginPass, False)
         def callback():
             self.prompt = prompt
             self.user = loginUser
-        succ_action = Action("end", callback)
-        fail_action = Action("exception", AuthenticationFailed())
-        pass_action.add_next_action('.+assword: ', fail_action)
-        pass_action.add_next_action(prompt, succ_action)
-        pass_action.start(self.ssh)
+        succ_state = FSMState("end", callback)
+        fail_state = FSMState("exception", AuthenticationFailed())
+        pass_state.add_next_state('.+assword: ', fail_state)
+        pass_state.add_next_state(prompt, succ_state)
+        pass_state.start(self.ssh)
 
     def p_expect(self):
         return self.ssh
 
     def change_prompt(self, cmd, prompt, password='', timeout=10):
-        cmd_action = Action("command", cmd)
+        cmd_state = FSMState("command", cmd)
         def callback():
             self.prompt = prompt
-        succ_action = Action("end", callback)
-        pass_action = Action("command", password)
-        failed_action = Action("exception", AuthenticationFailed())
+        succ_state = FSMState("end", callback)
+        pass_state = FSMState("command", password)
+        fail_state = FSMState("exception", AuthenticationFailed())
 
-        cmd_action.add_next_action('.+assword:', pass_action)                 # Need password
-        cmd_action.add_next_action(prompt, succ_action)                       # Success directly
-        pass_action.add_next_action(prompt, succ_action)                      # Success
-        pass_action.add_next_action("Authentication failure", failed_action)  # Wrong password
-        cmd_action.start(self.ssh, timeout)
+        cmd_state.add_next_state('.+assword:', pass_state)                 # Need password
+        cmd_state.add_next_state(prompt, succ_state)                       # Success directly
+        pass_state.add_next_state(prompt, succ_state)                      # Success
+        pass_state.add_next_state("Authentication failure", fail_state)    # Wrong password
+        cmd_state.start(self.ssh, timeout)
 
     def run_cmd(self, cmd, out=sys.stdout, password='', timeout=10):
-        cmd_action = Action("command", cmd)
-        succ_action = Action("end")
-        pass_action = Action("command", password)
-        failed_action = Action("exception", AuthenticationFailed())
-        continue_action = Action("operate", " ")
+        cmd_state = FSMState("command", cmd)
+        succ_state= FSMState("end")
+        pass_state = FSMState("command", password)
+        fail_state = FSMState("exception", AuthenticationFailed())
+        continue_state = FSMState("operate", " ")
 
-        cmd_action.add_next_action(self.prompt, succ_action)                  # Success directly
-        cmd_action.add_next_action('.+assword:', pass_action)                 # Need password
-        cmd_action.add_next_action('--More--\(\d+%\)', continue_action)       # Long output
-        pass_action.add_next_action(self.prompt, succ_action)                 # Success directly
-        pass_action.add_next_action("Authentication failure", failed_action)  # Wrong password
-        pass_action.add_next_action('--More--\(\d+%\)', continue_action)      # Long output
-        continue_action.add_next_action(self.prompt, succ_action)
-        continue_action.add_next_action('--More--\(\d+%\)', continue_action)
-        output = cmd_action.start(self.ssh, timeout)
+        cmd_state.add_next_state(self.prompt, succ_state)                  # Success directly
+        cmd_state.add_next_state('.+assword:', pass_state)                 # Need password
+        cmd_state.add_next_state('--More--\(\d+%\)', continue_state)       # Long output
+        pass_state.add_next_state(self.prompt, succ_state)                 # Success directly
+        pass_state.add_next_state("Authentication failure", fail_state)    # Wrong password
+        pass_state.add_next_state('--More--\(\d+%\)', continue_state)      # Long output
+        continue_state.add_next_state(self.prompt, succ_state)
+        continue_state.add_next_state('--More--\(\d+%\)', continue_state)
+        output = cmd_state.start(self.ssh, timeout)
         out.write(output)
         return output
 
