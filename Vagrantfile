@@ -25,7 +25,7 @@ Vagrant.configure("2") do |config|
     node.vm.provision "shell", privileged: true, inline: <<-SHELL
       systemctl stop NetworkManager
       systemctl disable NetworkManager
-      yum install -y git vim
+      yum install -y git vim python-coverage httpd
       sed -i 's@^PasswordAuthentication no@PasswordAuthentication yes@' /etc/ssh/sshd_config
       systemctl restart sshd
       cd /root
@@ -33,7 +33,10 @@ Vagrant.configure("2") do |config|
       cd sshexpect
       ssh-keygen -N "" -f /root/.ssh/id_rsa
       cat /root/.ssh/id_rsa.pub > /root/.ssh/authorized_keys
-      python unit.py
+      coverage run unit.py
+      coverage html -d /var/www/html/
+      systemctl start httpd
+      coverage report
     SHELL
   end
 
