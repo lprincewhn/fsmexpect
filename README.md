@@ -1,4 +1,4 @@
-# sshexpect
+# fsmexpect
 
 This project provides an FSM model base on pexcept to run ssh commands on remote host.
 
@@ -34,11 +34,11 @@ Following is an example of running privilege command.
 Following is the code to represent this FSM:
 
 ``` python
-cmd_state = FSMState("command", command)
-succ_state = FSMState("end")
-pass_state = FSMState("command", password)
-failed_state = FSMState("exception", AuthenticationFailed())
-continue_state = FSMState("operate", " ")
+cmd_state = fsmexpect.FSMState("command", command)
+succ_state = fsmexpect.FSMState("end")
+pass_state = fsmexpect.FSMState("command", password)
+failed_state = fsmexpect.FSMState("exception", AuthenticationFailed())
+continue_state = fsmexpect.FSMState("operate", " ")
 cmd_state.add_next_state(shell_prompt,  succ_state)                # Success directly
 cmd_state.add_next_state('.+assword:', pass_state)                 # Need password
 cmd_state.add_next_state('--More--\(\d+%\)', continue_state)       # Long output
