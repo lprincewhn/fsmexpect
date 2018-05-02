@@ -18,31 +18,31 @@ class TestSSHHandler(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def testNoPasswordRawActions(self):
+    def testNoPasswordFSM(self):
         prompt = '\[root@devtest ~\]# '
         ssh = sshclient.SSHHandler(self.host, self.userwithoutpass, prompt)
-        end_action = sshclient.Action("end")
-        ls_action = sshclient.Action("command", "ls")
-        ls_action.add_next_action('\[vagrant@devtest ~\]\$', end_action)
-        su_action = sshclient.Action("command", "su - vagrant", False)
-        su_action.add_next_action('\[vagrant@devtest ~\]\$', ls_action)
-        result = su_action.start(ssh.p_expect())
+        end_state = sshclient.FSMState("end")
+        ls_state = sshclient.FSMState("command", "ls")
+        ls_state.add_next_state('\[vagrant@devtest ~\]\$', end_state)
+        su_state = sshclient.FSMState("command", "su - vagrant", False)
+        su_state.add_next_state('\[vagrant@devtest ~\]\$', ls_state)
+        result = su_state.start(ssh.p_expect())
         ssh.close()
 
-    def testPasswordRawActions(self):
+    def testPasswordFSM(self):
         prompt = '\[vagrant@devtest ~\]\$ '
         ssh = sshclient.SSHHandler(self.host, self.userwithpass, prompt, self.userpass)
-        end_action = sshclient.Action("end")
-        ls_action = sshclient.Action("command", "ls")
-        ls_action.add_next_action('\[root@devtest ~\]#', end_action)
-        wpAction = sshclient.Action("exception")
-        wpAction.exception = sshclient.AuthenticationFailed()
-        passAction = sshclient.Action("command", "vagrant", False)
-        passAction.add_next_action('\[root@devtest ~\]#', ls_action)
-        passAction.add_next_action('Authentication failure', wpAction)
-        su_action = sshclient.Action("command", "su - ", False)
-        su_action.add_next_action('assword:', passAction)
-        result = su_action.start(ssh.p_expect())
+        end_state = sshclient.FSMState("end")
+        ls_state = sshclient.FSMState("command", "ls")
+        ls_state.add_next_state('\[root@devtest ~\]#', end_state)
+        wp_state = sshclient.FSMState("exception")
+        wp_state.exception = sshclient.AuthenticationFailed()
+        pass_state = sshclient.FSMState("command", "vagrant", False)
+        pass_state.add_next_state('\[root@devtest ~\]#', ls_state)
+        pass_state.add_next_state('Authentication failure', wp_state)
+        su_state = sshclient.FSMState("command", "su - ", False)
+        su_state.add_next_state('assword:', pass_state)
+        result = su_state.start(ssh.p_expect())
         ssh.close()
 
     def testPasswordChangePrompt(self):

@@ -2,13 +2,13 @@
 
 This project provides an FSM model base on pexcept to run ssh commands on remote host.
 
-"Action" is the core unit of the FSM model. Now there are 4 types of actions supported:
+"FSMState" is the core unit of the FSM model. Now there are 4 types of them supported:
 - command, which will send command to remote host, followed by '\n'.
 - operate, which will send a character to remote host.
 - end, which is an indicator of success.
 - exception, which will raise a pre-define exception.
 
-Each action is a "state" of FSM. The FSM state will transfer by command and its output from remote host.
+Each object of FSMState is a "state" of FSM. The state will transfer by command and its output from remote host.
 Following is an example of running privilege command.
 
 ![fsm.jpg](http://o7gg8x7fi.bkt.clouddn.com/fsm.jpg)
@@ -34,17 +34,17 @@ Following is an example of running privilege command.
 Following is the code to represent this FSM:
 
 ``` python
-cmd_action = Action("command", command)
-succ_action = Action("end")
-pass_action = Action("command", password)
-failed_action = Action("exception", AuthenticationFailed())
-continue_action = Action("operate", " ")
-cmd_action.add_next_action(shell_prompt,  succ_action)                # Success directly
-cmd_action.add_next_action('.+assword:', pass_action)                 # Need password
-cmd_action.add_next_action('--More--\(\d+%\)', continue_action)       # Long output
-pass_action.add_next_action(shell_prompt, succ_action)                # Success directly
-pass_action.add_next_action("Authentication failure", failed_action)  # Wrong password
-pass_action.add_next_action('--More--\(\d+%\)', continue_action)      # Long output
-continue_action.add_next_action(shell_prompt, succ_action)
-continue_action.add_next_action('--More--\(\d+%\)', continue_action)
+cmd_state = FSMState("command", command)
+succ_state = FSMState("end")
+pass_state = FSMState("command", password)
+failed_state = FSMState("exception", AuthenticationFailed())
+continue_state = FSMState("operate", " ")
+cmd_state.add_next_state(shell_prompt,  succ_state)                # Success directly
+cmd_state.add_next_state('.+assword:', pass_state)                 # Need password
+cmd_state.add_next_state('--More--\(\d+%\)', continue_state)       # Long output
+pass_state.add_next_state(shell_prompt, succ_state)                # Success directly
+pass_state.add_next_state("Authentication failure", failed_state)  # Wrong password
+pass_state.add_next_state('--More--\(\d+%\)', continue_state)      # Long output
+continue_state.add_next_state(shell_prompt, succ_state)
+continue_state.add_next_state('--More--\(\d+%\)', continue_state)
 ```
