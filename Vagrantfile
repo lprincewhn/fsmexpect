@@ -29,8 +29,8 @@ Vagrant.configure("2") do |config|
       sed -i 's@^PasswordAuthentication no@PasswordAuthentication yes@' /etc/ssh/sshd_config
       systemctl restart sshd
       cd /root
-      git clone https://github.com/lprincewhn/sshexpect.git
-      cd sshexpect
+      git clone https://github.com/lprincewhn/fsmexpect.git
+      cd fsmexpect
       ssh-keygen -N "" -f /root/.ssh/id_rsa
       cat /root/.ssh/id_rsa.pub > /root/.ssh/authorized_keys
       coverage run unit.py
