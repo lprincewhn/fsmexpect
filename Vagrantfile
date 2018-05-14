@@ -33,6 +33,7 @@ Vagrant.configure("2") do |config|
       cd fsmexpect
       ssh-keygen -N "" -f /root/.ssh/id_rsa
       cat /root/.ssh/id_rsa.pub > /root/.ssh/authorized_keys
+      export PYTHONPATH=../
       coverage run unit.py
       coverage html -d /var/www/html/
       systemctl start httpd
