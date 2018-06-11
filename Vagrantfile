@@ -29,7 +29,6 @@ Vagrant.configure("2") do |config|
       yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
       yum install -y docker-ce
 
-
       sed -i 's@^PasswordAuthentication no@PasswordAuthentication yes@' /etc/ssh/sshd_config
       ssh-keygen -N '' -f /root/.ssh/id_rsa
       cat /root/.ssh/id_rsa.pub > /root/.ssh/authorized_keys
