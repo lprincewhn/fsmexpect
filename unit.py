@@ -82,28 +82,28 @@ class TestSSHHandler(unittest.TestCase):
         prompt = '\[vagrant@devtest ~\]\$ '
         try:
             nmclient.SSHHandler('Nonexisithost', self.userwithpass, prompt, self.userpass)
-        except nmclient.ConnectionError, e:
+        except nmclient.common.ConnectionError, e:
             pass
 
     def testWrongPasswd(self):
         prompt = '\[vagrant@devtest ~\]\$ '
         try:
             nmclient.SSHHandler(self.host, self.userwithpass, prompt, 'sjla')
-        except nmclient.AuthenticationFailed, e:
+        except nmclient.common.AuthenticationFailed, e:
             pass
 
     def testWrongUser(self):
         prompt = '\[vagrant@devtest ~\]\$ '
         try:
             nmclient.SSHHandler(self.host, 'saffa', prompt)
-        except nmclient.AuthenticationFailed, e:
+        except nmclient.common.AuthenticationFailed, e:
             pass
 
     def testWrongPrompt(self):
         prompt = '\[vagrat@dvtest ~\]\$ '
         try:
             nmclient.SSHHandler(self.host, self.userwithpass, prompt, self.userpass)
-        except nmclient.Timeout, e:
+        except nmclient.common.Timeout, e:
             pass
 
 class TestSCPHandler(unittest.TestCase):
@@ -131,32 +131,32 @@ class TestSCPHandler(unittest.TestCase):
         scp = nmclient.SCPHandler('NonexistHost', self.userwithoutpass)
         try:
             scp.upload('./unit.py', '/root/uploadedfile')
-        except nmclient.SCPFailed, e:
+        except nmclient.common.SCPFailed, e:
             pass
         try:
             scp.download('/root/uploadedfile', '/root/downloadedfile')
-        except nmclient.SCPFailed, e:
+        except nmclient.common.SCPFailed, e:
             pass
 
     def testWrongPassword(self):
         scp = nmclient.SCPHandler(self.host, self.userwithpass, 'vagra111')
         try:
             scp.upload('./unit.py', '/home/vagrant/uploadedfile')
-        except nmclient.AuthenticationFailed, e:
+        except nmclient.common.AuthenticationFailed, e:
             pass
 
     def testWrongUser(self):
         scp = nmclient.SCPHandler(self.host, 'vagrnt')
         try:
             scp.upload('./unit.py', '/home/vagrant/uploadedfile')
-        except nmclient.AuthenticationFailed, e:
+        except nmclient.common.AuthenticationFailed, e:
             pass
 
     def testNoPermission(self):
         scp = nmclient.SCPHandler(self.host, self.userwithpass, self.userpass)
         try:
             scp.upload('./unit.py', '/root/uploadedfile')
-        except nmclient.SCPFailed, e:
+        except nmclient.common.SCPFailed, e:
             pass
 
 class TestNetConfHandler(unittest.TestCase):

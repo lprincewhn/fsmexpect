@@ -25,9 +25,10 @@ Vagrant.configure("2") do |config|
     node.vm.provision "shell", privileged: true, inline: <<-SHELL
       systemctl stop NetworkManager
       systemctl disable NetworkManager
+      yum install -y git vim python-coverage httpd net-tools
       yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
       yum install -y docker-ce
-      yum install -y git vim python-coverage httpd
+
 
       sed -i 's@^PasswordAuthentication no@PasswordAuthentication yes@' /etc/ssh/sshd_config
       ssh-keygen -N '' -f /root/.ssh/id_rsa
