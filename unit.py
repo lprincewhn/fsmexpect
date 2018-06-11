@@ -2,9 +2,9 @@
 #encoding: utf-8
 
 import unittest
-import fsmexpect
-import sys
+import nmclient
 import StringIO
+import xml.dom.minidom
 
 class TestSSHHandler(unittest.TestCase):
 
@@ -159,6 +159,35 @@ class TestSCPHandler(unittest.TestCase):
         except fsmexpect.SCPFailed, e:
             pass
 
+class TestNetConfHandler(unittest.TestCase):
+
+    def setUp(self):
+        self.host = 'localhost'
+        self.user = 'root'
+        self.userpass = 'passw0rd'
+        self.port = 8300
+
+    def tearDown(self):
+        pass
+
+    def testConnect(self):
+        netconf = fsmexpect.NetconfSSHHandler()
+        netconf.connect(self.host, self.user, self.userpass, 10, self.port)
+        netconf.close()
+        netconf = fsmexpect.NetconfSSHHandler()
+        netconf.connect(self.host, self.user, self.userpass, 10, self.port)
+        netconf.close()
+
+    def testSyncRequest(self):
+        netconf = fsmexpect.NetconfSSHHandler()
+        netconf.connect(self.host, self.user, self.userpass, 10, self.port)
+        doc = xml.dom.minidom.Document()
+        nschemas = fsmexpect.xmlnode(doc, 'ncm:schemas')
+        nnetconf_state = fsmexpect.xmlnode(doc, 'ncm:netconf-state', {'xmlns:ncm':'urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring'}, [nschemas])
+        nfilter = fsmexpect.xmlnode(doc, 'filter', {'type': 'subtree'}, [nnetconf_state])
+        nget = fsmexpect.xmlnode(doc, 'get', {}, [nfilter])
+        print netconf.sync_request(nget)
+        netconf.close()
 
 
 if __name__ == '__main__':

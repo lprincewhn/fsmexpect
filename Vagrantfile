@@ -25,14 +25,26 @@ Vagrant.configure("2") do |config|
     node.vm.provision "shell", privileged: true, inline: <<-SHELL
       systemctl stop NetworkManager
       systemctl disable NetworkManager
+      yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+      yum install -y docker-ce
       yum install -y git vim python-coverage httpd
+
       sed -i 's@^PasswordAuthentication no@PasswordAuthentication yes@' /etc/ssh/sshd_config
-      systemctl restart sshd
-      cd /root
-      git clone https://github.com/lprincewhn/fsmexpect.git
-      cd fsmexpect
-      ssh-keygen -N "" -f /root/.ssh/id_rsa
+      ssh-keygen -N '' -f /root/.ssh/id_rsa
       cat /root/.ssh/id_rsa.pub > /root/.ssh/authorized_keys
+      systemctl restart sshd
+      systemctl start docker
+      systemctl enable docker
+
+      cd /root
+      git clone https://github.com/CESNET/netopeer.git
+      cd netopeer
+      docker build -t netopeer .
+      docker run -d -p 8300:830 --name netopeer netopeer
+      echo -e "passw0rd\npassw0rd\n" | docker exec -i netopeer /bin/passwd
+      cd /root
+      git clone https://github.com/lprincewhn/nmclient.git
+      cd nmclient
       export PYTHONPATH=../
       coverage run unit.py
       coverage html -d /var/www/html/
