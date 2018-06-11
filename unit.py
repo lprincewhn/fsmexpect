@@ -36,7 +36,7 @@ class TestSSHHandler(unittest.TestCase):
         ls_state = nmclient.fsmstate.FSMState("command", "ls")
         ls_state.add_next_state('\[root@devtest ~\]#', end_state)
         wp_state = nmclient.fsmstate.FSMState("exception")
-        wp_state.exception = nmclient.AuthenticationFailed()
+        wp_state.exception = nmclient.common.AuthenticationFailed()
         pass_state = nmclient.fsmstate.FSMState("command", "vagrant", False)
         pass_state.add_next_state('\[root@devtest ~\]#', ls_state)
         pass_state.add_next_state('Authentication failure', wp_state)
@@ -188,7 +188,6 @@ class TestNetConfHandler(unittest.TestCase):
         nget = nmclient.xmlnode(doc, 'get', {}, [nfilter])
         print netconf.sync_request(nget)
         netconf.close()
-
 
 if __name__ == '__main__':
     unittest.main()
