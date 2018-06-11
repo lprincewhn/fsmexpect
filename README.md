@@ -1,5 +1,7 @@
 # fsmexpect
 
+** The project fsmexpect is deprecated and was rename to nmclient. More access ways are provided in nmclient, indludes SSH, SCP, Netconf. Module fsmstate is still here to provide the execution flow of ssh command to user.**
+
 This project provides an FSM model base on pexcept to run ssh commands on remote host.
 
 "FSMState" is the core unit of the FSM model. Now there are 4 types of them supported:
