@@ -146,6 +146,7 @@ class NetconfSSHHandler:
         self.sessionid = None
         self.replies = {}
         self.next_messageid = 1
+        self.noti_callback = None
 
     def start_listening_printout(self):
         thread = threading.Thread(target=self.process_printout, args=())
@@ -161,14 +162,14 @@ class NetconfSSHHandler:
                 # common.debug("Receive printout:\n" + printout)
                 doc = xml.dom.minidom.parseString(printout)
                 if doc.documentElement.tagName == 'rpc-reply':
+                    # SYNC reply, put the reply into self.replies.
                     messageid = doc.documentElement.getAttribute('message-id')
                     common.debug("Get reply of message %s." %(messageid))
                     if not self.replies.has_key(messageid):
-                        # SYNC request, put the reply into self.replies.
                         self.replies[messageid] = doc.documentElement
-                    else:
-                        # ASYNC request, call the callback in self.replies.
-                        self.replies[messageid](doc.documentElement)
+                if doc.documentElement.tagName == 'notification' and self.noti_callback:
+                    # ASYNC notification, call the callback in self.replies.
+                    self.noti_callback(doc.documentElement)
             except pexpect.EOF:
                 common.debug('Exit printout listening thread.')
                 break
@@ -243,7 +244,7 @@ class NetconfSSHHandler:
     def async_request(self, request, reply_callback, xmlns='urn:ietf:params:xml:ns:netconf:base:1.0'):
         messageid = str(self.next_messageid)
         self.next_messageid += 1
-        self.replies[messageid] = reply_callback
+        self.replies['notification'] = reply_callback
         doc = xml.dom.minidom.Document()
         nrpc = xmlnode(doc, 'rpc', {'xmlns': xmlns, 'message-id': messageid}, [request])
         doc.appendChild(nrpc)
